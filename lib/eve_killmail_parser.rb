@@ -2,7 +2,7 @@
 module Eve
   module Killmail
     # Class to handle parsing of the killmail into simple classes.
-    # 
+    #
     # Attributes
     # * victim (Victim) - The victim of the killmail
     # * attackers ([Attacker]) - Array of attackers
@@ -18,28 +18,32 @@ module Eve
         @attackers = []
         @destroyed = []
         @dropped = []
-        blocks = mail.split(/\n\n/)
+        blocks = mail.split(/\n\n|\r\n\r\n/)
         destroyed_line = 0
         dropped_line = 0
         involved_line = 0
         end_line = 0
         blocks.each_with_index do |line,index|
-          destroyed_line = index if line.include?('Destroyed')
-          dropped_line = index if line.include?('Dropped')
-          involved_line = index if line.include?('Involved')
+          destroyed_line = index if line.include?('Destroyed items')
+          dropped_line = index if line.include?('Dropped items')
+          involved_line = index if line.include?('Involved parties')
           end_line = index
         end
         blocks[(involved_line+1)..(destroyed_line-1)].each do |line|
           @attackers.push Eve::Killmail::Classes::Attacker.new(line.to_s)
         end
-        blocks[(destroyed_line+1)..(dropped_line-1)].each do |line|
-          line.split(/\n/).each do |item|
-            @destroyed.push Eve::Killmail::Classes::Item.new(item.to_s)
+        if destroyed_line != 0
+          blocks[(destroyed_line+1)..(dropped_line-1)].each do |line|
+            line.split(/\n/).each do |item|
+              @destroyed.push Eve::Killmail::Classes::Item.new(item.to_s)
+            end
           end
         end
-        blocks[(dropped_line+1)..(end_line)].each do |line|
-          line.split(/\n/).each do |item|
-            @dropped.push Eve::Killmail::Classes::Item.new(item.to_s)
+        if dropped_line != 0
+          blocks[(dropped_line+1)..(end_line)].each do |line|
+            line.split(/\n/).each do |item|
+              @dropped.push Eve::Killmail::Classes::Item.new(item.to_s)
+            end
           end
         end
       end
@@ -87,8 +91,9 @@ module Eve
       # * ship (String) - Type name of the attacking ship
       # * weapon (String) - Name of the weapon used by the attacker
       class Attacker
-        attr_accessor :name, :security, :corporation, :alliance, :faction, :damage_done, :ship, :weapon
+        attr_accessor :name, :security, :corporation, :alliance, :faction, :damage_done, :ship, :weapon, :finalblow
         def initialize(block)
+          @finalblow = block.include?('(laid the final blow)') ? true : false
           @name = Eve::Killmail.line('Name',block).gsub('Name: ','').gsub(' (laid the final blow)','').chomp.to_s
           @security = Eve::Killmail.line('Security',block).gsub('Security: ','').to_f
           @corporation = Eve::Killmail.line('Corp',block).gsub('Corp: ','').chomp.to_s
@@ -118,7 +123,7 @@ module Eve
           @drone = true if block.include?('(Drone Bay)')
           qtytmp = block.match(/(?:.*)(?:Qty: )(\d+)/)
           @quantity = qtytmp[1].to_i if qtytmp
-          nmetmp = block.match(/([\w' ]+).*$/)
+          nmetmp = block.match(/([^,^\r^\n^\(]+).*$/)
           @name = nmetmp[1].to_s if nmetmp
         end
       end
